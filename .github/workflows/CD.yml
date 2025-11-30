@@ -1,17 +1,14 @@
 name: Continuous Deployment
 
-# Run this workflow automatically after the "Continuous Integration" workflow finishes successfully
 on:
   workflow_run:
     workflows: ["Continuous Integration"]
     types:
       - completed
-  # Allows you to run this workflow manually from the Actions tab for testing
   workflow_dispatch:
 
 jobs:
   deploy-to-prod:
-    # Only run if the CI workflow succeeded (or if triggered manually)
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: self-hosted
 
@@ -19,25 +16,23 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Setup the SSH agent using the private key you stored in GitHub Secrets
       - name: Set up SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      # (g) Deploy passed builds to Kubernetes without disrupting service
       - name: Deploy to Production Server via SSH
         env:
-          # The DNS or IP of your Production Server
           PROD_HOST: ec2-54-237-12-65.compute-1.amazonaws.com
           DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
         run: |
-          # 1. Add the server to known hosts to avoid "Host key verification failed" in the runner
+          # Add Prod Server to known hosts to prevent verification errors
           ssh-keyscan -H $PROD_HOST >> ~/.ssh/known_hosts
 
-          # 2. Execute the Rolling Update command remotely
-          # This connects to Prod and tells Kubernetes to update the image
-          ssh ubuntu@$PROD_HOST "kubectl set image deployment/weather-ml-deployment weather-ml-container=$DOCKER_USER/weather-ml-app:${{ github.sha }} --record"
+          # Update the deployment using YOUR specific names:
+          # Deployment: weather-ml-app
+          # Container: weather-ml-app
+          ssh ubuntu@$PROD_HOST "kubectl set image deployment/weather-ml-app weather-ml-app=$DOCKER_USER/weather-ml-app:${{ github.sha }} --record"
 
-          # 3. Verify the deployment status
-          ssh ubuntu@$PROD_HOST "kubectl rollout status deployment/weather-ml-deployment"
+          # Verify the rollout status
+          ssh ubuntu@$PROD_HOST "kubectl rollout status deployment/weather-ml-app"
