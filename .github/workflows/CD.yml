@@ -23,19 +23,12 @@ jobs:
 
       - name: Deploy to Production Server via SSH
         env:
-           #IP ADDRESS
-          PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
-          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-        run: |
-       - name: Deploy to Production Server via SSH
-        env:
           PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
         run: |
           # Connect to the Prod Server
           ssh -o StrictHostKeyChecking=no ubuntu@$PROD_HOST << EOF
             
             # 1. Update the Deployment image
-            # This forces Kubernetes to pull the new image from DockerHub
             kubectl set image deployment/weather-ml-app weather-ml-app=${{ secrets.DOCKERHUB_USERNAME }}/weather-app:latest
 
             # 2. Trigger a Rolling Restart (Zero Downtime)
