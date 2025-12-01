@@ -2,13 +2,14 @@ name: Continuous Deployment
 
 on:
   workflow_run:
-    workflows: ["Continuous Integration"]
+    workflows: ["CI Pipeline"]  # FIXED: Must match the 'name' inside your CI.yml exactly
     types:
       - completed
   workflow_dispatch:
 
 jobs:
   deploy-to-prod:
+    # Only run if the CI pipeline succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: self-hosted
 
@@ -16,6 +17,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Set up the SSH connection using the key you added to Secrets
       - name: Set up SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -24,15 +26,22 @@ jobs:
       - name: Deploy to Production Server via SSH
         env:
           PROD_HOST: ec2-54-237-12-65.compute-1.amazonaws.com
-          DOCKER_USER: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          # Add Prod Server to known hosts to prevent verification errors
+          # 1. Add Prod Server to known hosts (security step)
           ssh-keyscan -H $PROD_HOST >> ~/.ssh/known_hosts
 
-          # Update the deployment using YOUR specific names:
-          # Deployment: weather-ml-app
-          # Container: weather-ml-app
-          ssh ubuntu@$PROD_HOST "kubectl set image deployment/weather-ml-app weather-ml-app=$DOCKER_USER/weather-ml-app:${{ github.sha }} --record"
+          # 2. Connect to Prod and run Docker commands
+          ssh ubuntu@$PROD_HOST << EOF
+            # Stop and remove the old container if it exists
+            sudo docker rm -f weather-app || true
 
-          # Verify the rollout status
-          ssh ubuntu@$PROD_HOST "kubectl rollout status deployment/weather-ml-app"
+            # Login to Docker Hub
+            sudo docker login -u $DOCKER_USER -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+            # Pull the latest image (FIXED: name changed to weather-app to match CI)
+            sudo docker pull $DOCKER_USER/weather-app:latest
+
+            # Run the new container (Mapping Port 80 on server to 5000 in app)
+            sudo docker run -d --name weather-app -p 80:5000 $DOCKER_USER/weather-app:latest
+          EOF
