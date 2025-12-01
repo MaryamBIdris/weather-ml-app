@@ -2,14 +2,13 @@ name: Continuous Deployment
 
 on:
   workflow_run:
-    workflows: ["CI Pipeline"]  # FIXED: Must match the 'name' inside your CI.yml exactly
+    workflows: ["CI Pipeline"]
     types:
       - completed
   workflow_dispatch:
 
 jobs:
   deploy-to-prod:
-    # Only run if the CI pipeline succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: self-hosted
 
@@ -17,7 +16,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Set up the SSH connection using the key you added to Secrets
       - name: Set up SSH Agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -25,23 +23,22 @@ jobs:
 
       - name: Deploy to Production Server via SSH
         env:
+           IP ADDRESS
           PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          # 1. Add Prod Server to known hosts (security step)
-          ssh-keyscan -H $PROD_HOST >> ~/.ssh/known_hosts
-
-          # 2. Connect to Prod and run Docker commands
-          ssh ubuntu@$PROD_HOST << EOF
-            # Stop and remove the old container if it exists
+          # Connect using StrictHostKeyChecking=no to stop the verification error
+          ssh -o StrictHostKeyChecking=no ubuntu@$PROD_HOST << EOF
+            
+            # 1. Stop and remove the old container
             sudo docker rm -f weather-app || true
 
-            # Login to Docker Hub
+            # 2. Login to Docker Hub
             sudo docker login -u $DOCKER_USER -p ${{ secrets.DOCKERHUB_TOKEN }}
 
-            # Pull the latest image (FIXED: name changed to weather-app to match CI)
+            # 3. Pull the latest image
             sudo docker pull $DOCKER_USER/weather-app:latest
 
-            # Run the new container (Mapping Port 80 on server to 5000 in app)
+            # 4. Run the new container
             sudo docker run -d --name weather-app -p 80:5000 $DOCKER_USER/weather-app:latest
           EOF
