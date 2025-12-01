@@ -25,7 +25,7 @@ jobs:
 
       - name: Deploy to Production Server via SSH
         env:
-          PROD_HOST: ec2-54-237-12-65.compute-1.amazonaws.com
+          PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           # 1. Add Prod Server to known hosts (security step)
