@@ -27,18 +27,21 @@ jobs:
           PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          # Connect using StrictHostKeyChecking=no to stop the verification error
+       - name: Deploy to Production Server via SSH
+        env:
+          PROD_HOST: ec2-54-82-50-131.compute-1.amazonaws.com
+        run: |
+          # Connect to the Prod Server
           ssh -o StrictHostKeyChecking=no ubuntu@$PROD_HOST << EOF
             
-            # 1. Stop and remove the old container
-            sudo docker rm -f weather-app || true
+            # 1. Update the Deployment image
+            # This forces Kubernetes to pull the new image from DockerHub
+            kubectl set image deployment/weather-ml-app weather-ml-app=${{ secrets.DOCKERHUB_USERNAME }}/weather-app:latest
 
-            # 2. Login to Docker Hub
-            sudo docker login -u $DOCKER_USER -p ${{ secrets.DOCKERHUB_TOKEN }}
-
-            # 3. Pull the latest image
-            sudo docker pull $DOCKER_USER/weather-app:latest
-
-            # 4. Run the new container
-            sudo docker run -d --name weather-app -p 80:5000 $DOCKER_USER/weather-app:latest
+            # 2. Trigger a Rolling Restart (Zero Downtime)
+            kubectl rollout restart deployment/weather-ml-app
+            
+            # 3. Wait for the update to finish successfully
+            kubectl rollout status deployment/weather-ml-app
+            
           EOF
